@@ -101,7 +101,7 @@ describe('App economy controls', () => {
       },
     })
 
-    expect(wrapper.text()).toContain(`Торговый терминал · ${GAME_BALANCE.nodes.terminal.cost}.00`)
+    expect(wrapper.text()).not.toContain(`Торговый терминал · ${GAME_BALANCE.nodes.terminal.cost}.00`)
     expect(wrapper.find('.app-version').text()).toBe('v2.0.1')
     expect(wrapper.find('.science-readout').text()).toContain('0.00/ 0.00')
     expect(wrapper.find('.economy-readout strong').text()).toBe('1000.00')
@@ -121,6 +121,33 @@ describe('App economy controls', () => {
     expect(wrapper.findAll('.speed-button').map((button) => button.text())).toEqual(['Пауза', '×1.00', '×5.00', '×10.00', '×100.00'])
     expect(wrapper.text()).not.toContain('Вернуть выбранного кота')
     expect(window.localStorage.getItem('catmand-save-v5')).toBeNull()
+    wrapper.unmount()
+  })
+
+  it('reveals construction actions only when their prerequisites are useful', async () => {
+    const wrapper = mount(App, { global: { stubs: { VueFlow: VueFlowStub } } })
+    const constructionButton = (label: string) => wrapper.findAll('.action-button').find((button) => button.text().includes(`${label} ·`))
+
+    expect(constructionButton('Комната отдыха')).toBeUndefined()
+    expect(constructionButton('Исследования')).toBeDefined()
+    expect(constructionButton('Сервер')).toBeUndefined()
+    expect(constructionButton('Торговый терминал')).toBeUndefined()
+    expect(constructionButton('Дорожный хаб')).toBeUndefined()
+
+    await constructionButton('Исследования')!.trigger('click')
+    expect(constructionButton('Сервер')).toBeDefined()
+    expect(constructionButton('Торговый терминал')).toBeUndefined()
+    expect(constructionButton('Дорожный хаб')).toBeUndefined()
+
+    await constructionButton('Сервер')!.trigger('click')
+    expect(constructionButton('Торговый терминал')).toBeDefined()
+    expect(constructionButton('Дорожный хаб')).toBeDefined()
+
+    await wrapper.find('.hire-button').trigger('click')
+    await wrapper.find('.hire-button').trigger('click')
+    expect(constructionButton('Комната отдыха')).toBeUndefined()
+    await wrapper.find('.hire-button').trigger('click')
+    expect(constructionButton('Комната отдыха')).toBeDefined()
     wrapper.unmount()
   })
 
@@ -175,6 +202,7 @@ describe('App economy controls', () => {
     expect(wrapper.find('.objective-card').text()).toContain('4:59 / 5:00')
     expect(wrapper.find('.objective-card').text()).toContain('ПИКОВАЯ ПРИБЫЛЬ612.34 / 500.00 /МИН')
     expect(wrapper.find('.objective-timer__progress').attributes('aria-valuenow')).toBe('299.9')
+    expect(wrapper.findAll('.action-button').some((button) => button.text().includes('Дорожный хаб ·'))).toBe(false)
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
     wrapper.unmount()
   })
@@ -396,14 +424,15 @@ describe('App economy controls', () => {
       global: { stubs: { VueFlow: VueFlowStub } },
     })
 
-    const buttons = wrapper.findAll('.action-button')
-    await buttons.find((button) => button.text().includes('Исследования ·'))!.trigger('click')
+    const constructionButton = (label: string) => wrapper.findAll('.action-button').find((button) => button.text().includes(`${label} ·`))
+    await constructionButton('Исследования')!.trigger('click')
     const researchNode = wrapper.find('[data-node-id="research-1"]')
     expect(researchNode.attributes('data-x')).toBe('385')
     expect(researchNode.attributes('data-y')).toBe('130')
 
-    await buttons.find((button) => button.text().includes('Дорожный хаб ·'))!.trigger('click')
-    const hubNode = wrapper.find('[data-node-id="hub-2"]')
+    await constructionButton('Сервер')!.trigger('click')
+    await constructionButton('Дорожный хаб')!.trigger('click')
+    const hubNode = wrapper.find('[data-node-id="hub-3"]')
     expect(hubNode.attributes('data-x')).toBe('490')
     expect(hubNode.attributes('data-y')).toBe('202')
     expect(researchNode.attributes('data-blocked')).toBe('true')
@@ -412,7 +441,7 @@ describe('App economy controls', () => {
 
     const saved = JSON.parse(window.localStorage.getItem('catmand-save-v5')!)
     expect(saved.simulation.nodes.find((node: { id: string }) => node.id === 'research-1').position).toEqual({ x: 385, y: 130 })
-    expect(saved.simulation.nodes.find((node: { id: string }) => node.id === 'hub-2').position).toEqual({ x: 490, y: 202 })
+    expect(saved.simulation.nodes.find((node: { id: string }) => node.id === 'hub-3').position).toEqual({ x: 490, y: 202 })
   })
 
   it('keeps module, connection, cat, and slot selections mutually exclusive', async () => {
@@ -427,41 +456,44 @@ describe('App economy controls', () => {
     const module = wrapper.find(`[data-node-id="${research.value.id}"]`)
     const connection = wrapper.find('.flow-edge-stub')
     const emptySlot = wrapper.find(`.slot-${research.value.slots[0].id}`)
-    const disconnectButton = wrapper.find('.action-button--disconnect')
-    const deleteButton = wrapper.find('.action-button--danger')
+    const disconnectButton = () => wrapper.find('.action-button--disconnect')
+    const deleteButton = () => wrapper.findAll('.action-button').find((button) => button.text().includes('Удалить выбранный модуль'))
     const catButton = wrapper.find('.crew-cat-button')
 
+    expect(deleteButton()).toBeUndefined()
+    expect(disconnectButton().exists()).toBe(false)
+
     await module.trigger('click')
-    expect(deleteButton.attributes()).not.toHaveProperty('disabled')
-    expect(disconnectButton.attributes()).toHaveProperty('disabled')
+    expect(deleteButton()).toBeDefined()
+    expect(disconnectButton().exists()).toBe(false)
 
     await connection.trigger('click')
-    expect(deleteButton.attributes()).toHaveProperty('disabled')
-    expect(disconnectButton.attributes()).not.toHaveProperty('disabled')
+    expect(deleteButton()).toBeUndefined()
+    expect(disconnectButton().exists()).toBe(true)
 
     await emptySlot.trigger('click')
-    expect(disconnectButton.attributes()).toHaveProperty('disabled')
+    expect(disconnectButton().exists()).toBe(false)
     expect(wrapper.find('.graph-status').text()).toContain('Слот выбран')
 
     await module.trigger('click')
-    expect(deleteButton.attributes()).not.toHaveProperty('disabled')
+    expect(deleteButton()).toBeDefined()
     expect(wrapper.find('.graph-status').text()).toContain('Исследования выбран')
 
     await catButton.trigger('click')
-    expect(deleteButton.attributes()).toHaveProperty('disabled')
+    expect(deleteButton()).toBeUndefined()
     expect(catButton.attributes('aria-pressed')).toBe('true')
 
     await connection.trigger('click')
     expect(catButton.attributes('aria-pressed')).toBe('false')
-    expect(disconnectButton.attributes()).not.toHaveProperty('disabled')
+    expect(disconnectButton().exists()).toBe(true)
 
     await module.trigger('click')
-    expect(disconnectButton.attributes()).toHaveProperty('disabled')
-    expect(deleteButton.attributes()).not.toHaveProperty('disabled')
+    expect(disconnectButton().exists()).toBe(false)
+    expect(deleteButton()).toBeDefined()
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     await wrapper.vm.$nextTick()
-    expect(deleteButton.attributes()).toHaveProperty('disabled')
+    expect(deleteButton()).toBeUndefined()
     expect(wrapper.find('.graph-status').text()).toContain('Выбор отменён')
     wrapper.unmount()
   })

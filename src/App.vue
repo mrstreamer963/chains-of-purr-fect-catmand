@@ -76,6 +76,10 @@ const unreachableCatIds = computed(() => snapshot.value.nodes.flatMap((node) => 
     : []
 })))
 const canHireCat = computed(() => snapshot.value.economy.credits >= GAME_BALANCE.economy.hireCatCost)
+const showRestConstruction = computed(() => snapshot.value.cats.length > GAME_BALANCE.nodes.rest.slots)
+const showServerConstruction = computed(() => snapshot.value.nodes.some((node) => node.type === 'research'))
+const showTerminalConstruction = computed(() => snapshot.value.nodes.some((node) => node.type === 'server'))
+const showHubConstruction = computed(() => !snapshot.value.flightUnlocked && snapshot.value.nodes.length > 2)
 const totalScience = computed(() => snapshot.value.scienceProgress)
 const totalData = computed(() => snapshot.value.nodes.reduce((total, node) => total + node.dataBuffer + node.dataStored, 0))
 const netIncomePerMinute = computed(() => snapshot.value.economy.revenuePerMinute - snapshot.value.economy.upkeepPerMinute)
@@ -903,14 +907,14 @@ onBeforeUnmount(() => {
           <p v-if="snapshot.goal.acknowledged" class="objective-card__sandbox">ЦЕЛЬ ДОСТИГНУТА · ПЕСОЧНИЦА ПРОДОЛЖАЕТСЯ</p>
         </section>
         <p class="panel-label">КОНСТРУКТОР СЕТИ</p>
-        <button class="action-button" type="button" :disabled="snapshot.economy.credits < GAME_BALANCE.nodes.rest.cost" @click="createNode('rest')"><span>⌂</span> Комната отдыха · {{ formatGameNumber(GAME_BALANCE.nodes.rest.cost) }}</button>
+        <button v-if="showRestConstruction" class="action-button" type="button" :disabled="snapshot.economy.credits < GAME_BALANCE.nodes.rest.cost" @click="createNode('rest')"><span>⌂</span> Комната отдыха · {{ formatGameNumber(GAME_BALANCE.nodes.rest.cost) }}</button>
         <button class="action-button" type="button" :disabled="snapshot.economy.credits < GAME_BALANCE.nodes.research.cost" @click="createNode('research')"><span>✦</span> Исследования · {{ formatGameNumber(GAME_BALANCE.nodes.research.cost) }}</button>
-        <button class="action-button" type="button" :disabled="snapshot.economy.credits < GAME_BALANCE.nodes.server.cost" @click="createNode('server')"><span>▦</span> Сервер · {{ formatGameNumber(GAME_BALANCE.nodes.server.cost) }}</button>
-        <button class="action-button" type="button" :disabled="snapshot.economy.credits < GAME_BALANCE.nodes.terminal.cost" @click="createNode('terminal')"><span>₡</span> Торговый терминал · {{ formatGameNumber(GAME_BALANCE.nodes.terminal.cost) }}</button>
-        <button class="action-button" type="button" :disabled="snapshot.economy.credits < GAME_BALANCE.nodes.hub.cost" @click="createNode('hub')"><span>◆</span> Дорожный хаб · {{ formatGameNumber(GAME_BALANCE.nodes.hub.cost) }}</button>
+        <button v-if="showServerConstruction" class="action-button" type="button" :disabled="snapshot.economy.credits < GAME_BALANCE.nodes.server.cost" @click="createNode('server')"><span>▦</span> Сервер · {{ formatGameNumber(GAME_BALANCE.nodes.server.cost) }}</button>
+        <button v-if="showTerminalConstruction" class="action-button" type="button" :disabled="snapshot.economy.credits < GAME_BALANCE.nodes.terminal.cost" @click="createNode('terminal')"><span>₡</span> Торговый терминал · {{ formatGameNumber(GAME_BALANCE.nodes.terminal.cost) }}</button>
+        <button v-if="showHubConstruction" class="action-button" type="button" :disabled="snapshot.economy.credits < GAME_BALANCE.nodes.hub.cost" @click="createNode('hub')"><span>◆</span> Дорожный хаб · {{ formatGameNumber(GAME_BALANCE.nodes.hub.cost) }}</button>
         <p v-if="snapshot.economy.debtWarning" class="debt-warning">ЛАБОРАТОРИЯ ЗАКРЫТА · ранний доступ позволяет продолжить восстановление.</p>
-        <button class="action-button action-button--disconnect" type="button" :disabled="!selectedConnection" @click="disconnectSelected"><span>×</span> Отключить связь</button>
-        <button class="action-button action-button--danger" type="button" :disabled="!selectedModuleId" @click="deleteSelectedNode"><span>×</span> Удалить выбранный модуль</button>
+        <button v-if="selectedConnection" class="action-button action-button--disconnect" type="button" @click="disconnectSelected"><span>×</span> Отключить связь</button>
+        <button v-if="selectedModuleId" class="action-button action-button--danger" type="button" @click="deleteSelectedNode"><span>×</span> Удалить выбранный модуль</button>
         <div class="panel-rule"></div>
         <p class="panel-label">ЭКИПАЖ</p>
         <button class="hire-button" type="button" :disabled="!canHireCat" @click="hireCat"><span>◕</span> Нанять кота · {{ formatGameNumber(GAME_BALANCE.economy.hireCatCost) }}</button>
