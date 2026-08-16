@@ -31,6 +31,7 @@ describe('GameNode', () => {
     })
     expect(wrapper.text()).toContain('Выработка')
     expect(wrapper.text()).toContain('1.25')
+    expect(wrapper.find('.worker-slot').attributes('aria-label')).toContain('Место 1, Исследования: свободно')
     await wrapper.find('.worker-slot').trigger('click')
     expect(onSlotClick).toHaveBeenCalledWith('research-1', 'slot-1', null, null, null)
   })

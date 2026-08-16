@@ -7,6 +7,12 @@ const CAT_VARIANTS = ['◕', '◔', '◑', '◒', '◐']
 const EPSILON = 0.000001
 const SAVE_VERSION = 5
 
+function catName(index: number) {
+  const baseName = CAT_NAMES[index % CAT_NAMES.length]
+  const generation = Math.floor(index / CAT_NAMES.length) + 1
+  return generation === 1 ? baseName : `${baseName} ${generation}`
+}
+
 function slots(nodeId: string, amount: number): WorkSlot[] {
   return Array.from({ length: amount }, (_, index) => ({ id: `${nodeId}-slot-${index + 1}`, catId: null, reservedByCatId: null, assignedCatId: null }))
 }
@@ -351,7 +357,7 @@ export class Simulation {
     this.catCounter += 1
     const index = this.catCounter - 1
     const cat: Cat = {
-      id: `cat-${this.catCounter}`, name: CAT_NAMES[index % CAT_NAMES.length], variant: CAT_VARIANTS[index % CAT_VARIANTS.length],
+      id: `cat-${this.catCounter}`, name: catName(index), variant: CAT_VARIANTS[index % CAT_VARIANTS.length],
       nodeId: REST_ID, slotId: null, status: 'idle', travel: null, stranded: null, vigor,
     }
     this.cats.set(cat.id, cat)

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Handle, Position, type NodeProps } from '@vue-flow/core'
 import { GAME_BALANCE, type Cat, type SimNode, type WorkSlot } from '../core'
-import { formatGameNumber, formatVigor } from '../formatGameNumber'
+import { formatGameInteger, formatGameNumber, formatVigor } from '../formatGameNumber'
 
 interface NodeViewData {
   node: SimNode
@@ -56,6 +56,17 @@ function slotTitle(slot: WorkSlot) {
   return undefined
 }
 
+function slotAriaLabel(slot: WorkSlot, slotIndex: number) {
+  const catId = slot.catId ?? slot.reservedByCatId ?? slot.assignedCatId
+  const catName = catId ? props.data.cats[catId]?.name ?? 'Кот' : null
+  const state = slot.catId
+    ? props.data.node.type === 'rest' ? 'отдыхает' : 'работает'
+    : slot.reservedByCatId ? 'в пути'
+      : slot.assignedCatId ? 'назначен после отдыха'
+        : 'свободно'
+  return `Место ${slotIndex + 1}, ${props.data.node.name}: ${catName ? `${catName}, ${state}` : state}. ${slotTitle(slot) ?? 'Нажмите, чтобы выбрать это место.'}`
+}
+
 const nodeIcons = { rest: '⌂', research: '✦', server: '▦', hub: '◆', terminal: '₡' }
 const nodeSubtitles = {
   rest: 'Кот-операторы в резерве',
@@ -87,7 +98,7 @@ const nodeSubtitles = {
       />
       <span class="hub-icon" aria-hidden="true">◆</span>
       <strong>ДОРОЖНЫЙ ХАБ</strong>
-      <p>{{ formatGameNumber(hubPorts.length) }} направления</p>
+      <p>{{ formatGameInteger(hubPorts.length) }} направления</p>
       <p v-if="data.blocked" class="node-blocked-message">ПЕРЕКРЫТИЕ · ПЕРЕМЕСТИТЕ</p>
       <section v-if="data.strandedCats?.length" class="stranded-cats" aria-label="Коты без маршрута">
         <span v-for="cat in data.strandedCats" :key="cat.id">{{ cat.variant }} {{ cat.name }} · путь недоступен</span>
@@ -114,12 +125,13 @@ const nodeSubtitles = {
 
       <section class="slot-grid" aria-label="Рабочие слоты">
         <button
-          v-for="slot in data.node.slots"
+          v-for="(slot, slotIndex) in data.node.slots"
           :key="slot.id"
           class="worker-slot nodrag nopan"
           :class="{ 'worker-slot--selected': representsSelectedCat(slot) || slot.id === data.selectedSlotId, 'worker-slot--occupied': slot.catId, 'worker-slot--reserved': slot.reservedByCatId, 'worker-slot--assigned': slot.assignedCatId, 'worker-slot--unassigned': isUnassignedRestCat(slot), 'worker-slot--exhausted': data.node.type !== 'rest' && slot.catId && (data.cats[slot.catId]?.vigor ?? 0) <= 0, 'worker-slot--unreachable': cannotReachAssignedSlot(slot) }"
           type="button"
           :title="slotTitle(slot)"
+          :aria-label="slotAriaLabel(slot, slotIndex)"
           :disabled="data.blocked"
           @click.stop="data.onSlotClick(data.node.id, slot.id, slot.catId, slot.reservedByCatId, slot.assignedCatId)"
         >
@@ -163,7 +175,7 @@ const nodeSubtitles = {
         <template v-if="data.node.type === 'research'"><div><span>Выработка</span><strong>{{ formatGameNumber(data.node.productionRate) }} <small>ед/с</small></strong></div><div :class="{ warning: data.node.dataBuffer > 0.75 }"><span>Буфер</span><strong>{{ formatGameNumber(data.node.dataBuffer) }} <small>данных</small></strong></div></template>
         <template v-else-if="data.node.type === 'server'"><div><span>Приём / выход</span><strong>{{ formatGameNumber(data.node.inputRate) }} / {{ formatGameNumber(data.node.outputRate) }} <small>ед/с</small></strong></div><div><span>Хранилище</span><strong>{{ formatGameNumber(data.node.dataStored) }} <small>данных</small></strong></div></template>
         <template v-else-if="data.node.type === 'terminal'"><div><span>Продажа</span><strong>{{ formatGameNumber(data.node.inputRate) }} <small>ед/с</small></strong></div></template>
-        <template v-else><div><span>Мест</span><strong>{{ formatGameNumber(data.node.slots.filter((slot) => !slot.catId).length) }} <small>свободно</small></strong></div><div><span>Статус</span><strong>тихо</strong></div></template>
+        <template v-else><div><span>Мест</span><strong>{{ formatGameInteger(data.node.slots.filter((slot) => !slot.catId).length) }} <small>свободно</small></strong></div><div><span>Статус</span><strong>тихо</strong></div></template>
       </footer>
 
       <Handle id="road" class="game-handle game-handle--road" type="target" :position="Position.Bottom" />

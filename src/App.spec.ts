@@ -6,7 +6,7 @@ import App from './App.vue'
 
 const VueFlowStub = {
   props: ['nodes', 'edges', 'isValidConnection'],
-  emits: ['connect', 'init', 'edge-click', 'node-click'],
+  emits: ['connect', 'init', 'edge-click', 'node-click', 'node-drag', 'node-drag-stop'],
   setup(_props: unknown, { emit }: { emit: (event: string, value: unknown) => void }) {
     onMounted(() => {
       emit('init', {
@@ -60,6 +60,16 @@ const VueFlowStub = {
         type="button"
         @click="$emit('connect', { source: 'server-2', target: 'terminal-3', sourceHandle: 'data-out', targetHandle: 'data-in' })"
       />
+      <button
+        class="drag-research-preview"
+        type="button"
+        @click="$emit('node-drag', { node: { id: 'research-1', position: { x: 650, y: 110 } } })"
+      />
+      <button
+        class="drag-research-stop"
+        type="button"
+        @click="$emit('node-drag-stop', { node: { id: 'research-1', position: { x: 700, y: 120 } } })"
+      />
     </div>
   `,
 }
@@ -108,17 +118,17 @@ describe('App economy controls', () => {
     expect(wrapper.find('.expense-label').text()).toBe('РАСХОДЫ / МИН')
     expect(wrapper.find('.expense-line small').text()).toBe('−11.00')
     expect(wrapper.find('.research-project').text()).toContain('ВОЗДУШНАЯ ЭРА')
-    expect(wrapper.find('.research-project__value').text()).toContain('0.00 / 50.00НАУКИ')
+    expect(wrapper.find('.research-project__value').text()).toContain('0.00 / 50НАУКИ')
     expect(wrapper.find('.research-project__progress').attributes('aria-valuenow')).toBe('0')
     expect(wrapper.find('.objective-card').text()).toContain('АВТОНОМНАЯ ЛАБОРАТОРИЯ')
     expect(wrapper.find('.objective-card').text()).toContain('0 / 2')
-    expect(wrapper.find('.objective-card').text()).toContain('0.00 / 500.00 /МИН')
+    expect(wrapper.find('.objective-card').text()).toContain('0.00 / 500 /МИН')
     expect(wrapper.find('.objective-card').text()).toContain('0:00 / 5:00')
     expect(wrapper.find('.objective-timer__progress').attributes('aria-valuenow')).toBe('0')
     expect(wrapper.find('.objective-card__hint').text()).toContain('сбрасывается')
-    expect(wrapper.findAll('.speed-button').map((button) => button.text())).toEqual(['Пауза', '×1.00', '×5.00', '×10.00'])
+    expect(wrapper.findAll('.speed-button').map((button) => button.text())).toEqual(['Пауза', '×1', '×5', '×10'])
     await wrapper.find('.brand-mark').trigger('click')
-    expect(wrapper.findAll('.speed-button').map((button) => button.text())).toEqual(['Пауза', '×1.00', '×5.00', '×10.00', '×100.00'])
+    expect(wrapper.findAll('.speed-button').map((button) => button.text())).toEqual(['Пауза', '×1', '×5', '×10', '×100'])
     expect(wrapper.text()).not.toContain('Вернуть выбранного кота')
     expect(window.localStorage.getItem('catmand-save-v5')).toBeNull()
     wrapper.unmount()
@@ -200,7 +210,7 @@ describe('App economy controls', () => {
     expect(wrapper.find('.objective-card').text()).toContain('2 / 2')
     expect(wrapper.find('.objective-card').text()).toContain('ВОЗДУШНАЯ ЭРАЗАВЕРШЕНА')
     expect(wrapper.find('.objective-card').text()).toContain('4:59 / 5:00')
-    expect(wrapper.find('.objective-card').text()).toContain('ПИКОВАЯ ПРИБЫЛЬ612.34 / 500.00 /МИН')
+    expect(wrapper.find('.objective-card').text()).toContain('ПИКОВАЯ ПРИБЫЛЬ612.34 / 500 /МИН')
     expect(wrapper.find('.objective-timer__progress').attributes('aria-valuenow')).toBe('299.9')
     expect(wrapper.findAll('.action-button').some((button) => button.text().includes('Дорожный хаб ·'))).toBe(false)
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
@@ -230,7 +240,7 @@ describe('App economy controls', () => {
 
     await wrapper.find('.goal-modal button').trigger('click')
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
-    expect(wrapper.find('.speed-button--active').text()).toBe('×1.00')
+    expect(wrapper.find('.speed-button--active').text()).toBe('×1')
     expect(wrapper.find('.objective-card__sandbox').text()).toContain('ПЕСОЧНИЦА ПРОДОЛЖАЕТСЯ')
     const persisted = JSON.parse(window.localStorage.getItem('catmand-save-v5')!)
     expect(persisted.simulation.goal).toEqual({ achieved: true, acknowledged: true, profitableSeconds: GAME_BALANCE.objective.requiredProfitableSeconds, peakNetIncomePerMinute: GAME_BALANCE.objective.requiredPeakNetIncomePerMinute })
@@ -238,7 +248,7 @@ describe('App economy controls', () => {
 
     const restoredWrapper = mount(App, { attachTo: document.body, global: { stubs: { VueFlow: VueFlowStub } } })
     expect(restoredWrapper.find('[role="dialog"]').exists()).toBe(false)
-    expect(restoredWrapper.find('.speed-button--active').text()).toBe('×1.00')
+    expect(restoredWrapper.find('.speed-button--active').text()).toBe('×1')
     restoredWrapper.unmount()
   })
 
@@ -289,7 +299,7 @@ describe('App economy controls', () => {
     const noxButton = buttons.find((button) => button.text().includes('Нокс'))!
     await noxButton.trigger('click')
     expect(noxButton.attributes('aria-pressed')).toBe('true')
-    expect(wrapper.find('.graph-status').text()).toContain('Нокс выбран')
+    expect(wrapper.find('.graph-status').text()).toContain('Нокс:')
     await noxButton.trigger('click')
     expect(noxButton.attributes('aria-pressed')).toBe('false')
     expect(wrapper.find('.graph-status').text()).toContain('Выбор кота отменён')
@@ -358,24 +368,24 @@ describe('App economy controls', () => {
       return event
     }
 
-    expect(activeSpeed()).toBe('×1.00')
+    expect(activeSpeed()).toBe('×1')
     await press('2')
-    expect(activeSpeed()).toBe('×5.00')
-    expect(wrapper.find('.graph-status').text()).toContain('×5.00')
+    expect(activeSpeed()).toBe('×5')
+    expect(wrapper.find('.graph-status').text()).toContain('×5')
     const firstSpaceEvent = await press(' ')
     expect(firstSpaceEvent.defaultPrevented).toBe(true)
     expect(activeSpeed()).toBe('Пауза')
     await press(' ')
-    expect(activeSpeed()).toBe('×5.00')
+    expect(activeSpeed()).toBe('×5')
     await press('3')
-    expect(activeSpeed()).toBe('×10.00')
+    expect(activeSpeed()).toBe('×10')
     await press('1')
-    expect(activeSpeed()).toBe('×1.00')
+    expect(activeSpeed()).toBe('×1')
     const spaceEvent = await press(' ')
     expect(spaceEvent.defaultPrevented).toBe(true)
     expect(activeSpeed()).toBe('Пауза')
     await press(' ')
-    expect(activeSpeed()).toBe('×1.00')
+    expect(activeSpeed()).toBe('×1')
 
     expect(wrapper.find('.speed-button').attributes('aria-keyshortcuts')).toBe('Space')
     expect(wrapper.findAll('.speed-button')[2].attributes('aria-keyshortcuts')).toBe('2')
@@ -411,15 +421,15 @@ describe('App economy controls', () => {
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '3', ctrlKey: true, bubbles: true }))
     await wrapper.vm.$nextTick()
-    expect(wrapper.find('.speed-button--active').text()).toBe('×1.00')
+    expect(wrapper.find('.speed-button--active').text()).toBe('×1')
 
     wrapper.find('input[type="file"]').element.dispatchEvent(new KeyboardEvent('keydown', { key: '3', bubbles: true }))
     await wrapper.vm.$nextTick()
-    expect(wrapper.find('.speed-button--active').text()).toBe('×1.00')
+    expect(wrapper.find('.speed-button--active').text()).toBe('×1')
     wrapper.unmount()
   })
 
-  it('centers new nodes in the visible graph after pan and zoom and blocks overlaps', async () => {
+  it('places new nodes near the visible center without overlaps', async () => {
     const wrapper = mount(App, {
       global: { stubs: { VueFlow: VueFlowStub } },
     })
@@ -434,14 +444,30 @@ describe('App economy controls', () => {
     await constructionButton('Дорожный хаб')!.trigger('click')
     const hubNode = wrapper.find('[data-node-id="hub-3"]')
     expect(hubNode.attributes('data-x')).toBe('490')
-    expect(hubNode.attributes('data-y')).toBe('202')
-    expect(researchNode.attributes('data-blocked')).toBe('true')
-    expect(hubNode.attributes('data-blocked')).toBe('true')
+    expect(hubNode.attributes('data-y')).toBe('454')
+    expect(researchNode.attributes('data-blocked')).toBe('false')
+    expect(hubNode.attributes('data-blocked')).toBe('false')
     wrapper.unmount()
 
     const saved = JSON.parse(window.localStorage.getItem('catmand-save-v5')!)
     expect(saved.simulation.nodes.find((node: { id: string }) => node.id === 'research-1').position).toEqual({ x: 385, y: 130 })
-    expect(saved.simulation.nodes.find((node: { id: string }) => node.id === 'hub-3').position).toEqual({ x: 490, y: 202 })
+    expect(saved.simulation.nodes.find((node: { id: string }) => node.id === 'hub-3').position).toEqual({ x: 490, y: 454 })
+  })
+
+  it('previews node dragging immediately and commits it on drag stop', async () => {
+    const wrapper = mount(App, { global: { stubs: { VueFlow: VueFlowStub } } })
+    const constructionButton = wrapper.findAll('.action-button').find((button) => button.text().includes('Исследования ·'))!
+    await constructionButton.trigger('click')
+
+    await wrapper.find('.drag-research-preview').trigger('click')
+    expect(wrapper.find('[data-node-id="research-1"]').attributes()).toMatchObject({ 'data-x': '650', 'data-y': '110' })
+
+    await wrapper.find('.drag-research-stop').trigger('click')
+    expect(wrapper.find('[data-node-id="research-1"]').attributes()).toMatchObject({ 'data-x': '700', 'data-y': '120' })
+    wrapper.unmount()
+
+    const saved = JSON.parse(window.localStorage.getItem('catmand-save-v5')!)
+    expect(saved.simulation.nodes.find((node: { id: string }) => node.id === 'research-1').position).toEqual({ x: 700, y: 120 })
   })
 
   it('keeps module, connection, cat, and slot selections mutually exclusive', async () => {
@@ -516,7 +542,7 @@ describe('App economy controls', () => {
     const targetSelector = `.slot-${server.value.slots[0].id}`
 
     await wrapper.find(sourceSelector).trigger('click')
-    expect(wrapper.find('.graph-status').text()).toContain('Выберите новое рабочее место')
+    expect(wrapper.find('.graph-status').text()).toContain('выберите новое рабочее место')
     expect(wrapper.find(sourceSelector).attributes('data-cat')).toBe('cat-1')
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
@@ -530,7 +556,7 @@ describe('App economy controls', () => {
     expect(wrapper.find(sourceSelector).attributes('data-assigned')).toBeUndefined()
     expect(wrapper.find(targetSelector).attributes('data-assigned')).toBe('cat-1')
     expect(wrapper.find(targetSelector).attributes('data-reserved')).toBe('cat-1')
-    expect(wrapper.find('.graph-status').text()).toContain('идёт к модулю')
+    expect(wrapper.find('.graph-status').text()).toContain('направляется к модулю')
     wrapper.unmount()
   })
 
@@ -551,7 +577,7 @@ describe('App economy controls', () => {
     expect(wrapper.find(sourceSelector).attributes('data-cat')).toBeUndefined()
     expect(wrapper.find(sourceSelector).attributes('data-assigned')).toBeUndefined()
     expect(wrapper.findAll('.flow-slot-stub').some((slot) => slot.attributes('data-reserved') === 'cat-1')).toBe(true)
-    expect(wrapper.find('.graph-status').text()).toContain('снят с работы')
+    expect(wrapper.find('.graph-status').text()).toContain('работа завершена')
     wrapper.unmount()
   })
 
@@ -567,15 +593,15 @@ describe('App economy controls', () => {
     const wrapper = mount(App, { global: { stubs: { VueFlow: VueFlowStub } } })
     const sourceSelector = `.slot-${research.value.slots[0].id}`
     await wrapper.find('.slot-rest-1-slot-1').trigger('click')
-    expect(wrapper.find('.graph-status').text()).toContain('Мира выбран')
+    expect(wrapper.find('.graph-status').text()).toContain('Мира:')
 
     await wrapper.find(sourceSelector).trigger('click')
-    expect(wrapper.find('.graph-status').text()).toContain('Нокс выбран')
+    expect(wrapper.find('.graph-status').text()).toContain('Нокс:')
     expect(wrapper.find(sourceSelector).attributes('data-assigned')).toBe('cat-2')
 
     await wrapper.find(sourceSelector).trigger('click')
     expect(wrapper.find(sourceSelector).attributes('data-assigned')).toBeUndefined()
-    expect(wrapper.find('.graph-status').text()).toContain('больше не закреплён')
+    expect(wrapper.find('.graph-status').text()).toContain('Назначение для Нокс снято')
     wrapper.unmount()
   })
 
@@ -623,7 +649,7 @@ describe('App economy controls', () => {
     expect(wrapper.find(oldTarget).attributes('data-reserved')).toBeUndefined()
     expect(wrapper.find(newTarget).attributes('data-assigned')).toBe('cat-1')
     expect(wrapper.find(newTarget).attributes('data-reserved')).toBe('cat-1')
-    expect(wrapper.find('.graph-status').text()).toContain('идёт к модулю')
+    expect(wrapper.find('.graph-status').text()).toContain('направляется к модулю')
     wrapper.unmount()
   })
 

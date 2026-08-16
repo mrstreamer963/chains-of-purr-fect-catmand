@@ -207,6 +207,15 @@ describe('Simulation rest seating', () => {
     expect(simulation.hireCat()).toMatchObject({ ok: true, value: { id: 'cat-2', vigor: 0, slotId: 'rest-1-slot-2' } })
   })
 
+  it('adds a generation number when cat names repeat', () => {
+    const simulation = new Simulation()
+    for (let index = 0; index < 5; index += 1) simulation.hireCat()
+
+    expect(simulation.snapshot().cats.map((candidate) => candidate.name)).toEqual([
+      'Мира', 'Нокс', 'Север', 'Иней', 'Пиксель', 'Мира 2',
+    ])
+  })
+
   it('allows more cats than seats and queues them without recovery', () => {
     const simulation = new Simulation()
     simulation.hireCat()

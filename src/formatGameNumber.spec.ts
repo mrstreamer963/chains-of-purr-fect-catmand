@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatGameNumber, formatVigor } from './formatGameNumber'
+import { formatGameInteger, formatGameNumber, formatVigor } from './formatGameNumber'
 
 describe('formatGameNumber', () => {
   it.each([
@@ -14,6 +14,16 @@ describe('formatGameNumber', () => {
     { value: -0, expected: '0.00' },
   ])('formats $value as $expected', ({ value, expected }) => {
     expect(formatGameNumber(value)).toBe(expected)
+  })
+
+  it.each([
+    { value: 0, expected: '0' },
+    { value: 1, expected: '1' },
+    { value: 4, expected: '4' },
+    { value: 10, expected: '10' },
+    { value: 199.6, expected: '200' },
+  ])('formats integer $value as $expected', ({ value, expected }) => {
+    expect(formatGameInteger(value)).toBe(expected)
   })
 
   it.each([

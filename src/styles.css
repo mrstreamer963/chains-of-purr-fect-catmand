@@ -206,10 +206,11 @@ button { font: inherit; }
 .node-metrics strong { color: #bdeafa; font: 600 14px/1 'DM Mono', monospace; }
 .node-metrics small { color: #6f8798; font-size: 8px; font-weight: 400; }
 .node-metrics .warning strong, .node-metrics .warning span { color: #ffc66f; }
-.game-handle { width: 11px; height: 11px; border: 2px solid #0b1320; border-radius: 50%; background: #79e7ff; box-shadow: 0 0 10px rgba(114, 232, 255, .92); }
-.game-handle--input { background: #9facff; }
-.game-handle--road { width: 9px; height: 9px; border-color: #111923; background: #9bacb9; box-shadow: 0 0 7px rgba(157, 179, 194, .58); }
-.game-handle--road-out { background: #b8c5cf; }
+.game-handle { width: 28px; height: 28px; border: 0; background: transparent; box-shadow: none; }
+.game-handle::after { position: absolute; top: 50%; left: 50%; width: 11px; height: 11px; border: 2px solid #0b1320; border-radius: 50%; background: #79e7ff; box-shadow: 0 0 10px rgba(114, 232, 255, .92); content: ''; transform: translate(-50%, -50%); }
+.game-handle--input::after { background: #9facff; }
+.game-handle--road::after { width: 9px; height: 9px; border-color: #111923; background: #9bacb9; box-shadow: 0 0 7px rgba(157, 179, 194, .58); }
+.game-handle--road-out::after { background: #b8c5cf; }
 
 
 .graph-status { position: absolute; z-index: 4; bottom: 20px; left: 20px; max-width: min(500px, calc(100% - 40px)); padding: 10px 13px; border: 1px solid rgba(145, 176, 190, .16); border-radius: 2px; color: #8299aa; background: rgba(7, 13, 21, .78); backdrop-filter: blur(8px); font: 10px 'DM Mono', monospace; }

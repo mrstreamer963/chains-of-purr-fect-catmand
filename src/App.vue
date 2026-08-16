@@ -5,7 +5,7 @@ import { GAME_BALANCE, Simulation, type Cat, type CommandResult, type NodeType, 
 import GameNode from './components/GameNode.vue'
 import CatFlightEdge from './components/CatFlightEdge.vue'
 import WorkerTransitEdge from './components/WorkerTransitEdge.vue'
-import { formatGameNumber, formatVigor } from './formatGameNumber'
+import { formatGameInteger, formatGameNumber, formatVigor } from './formatGameNumber'
 
 type Point = { x: number; y: number }
 type Size = { width: number; height: number }
@@ -52,11 +52,11 @@ const lastRunningSpeed = ref<Exclude<SimulationSpeed, 0>>(1)
 const diagnosticSpeedUnlocked = ref(false)
 const normalSpeedOptions: SpeedOption[] = [
   { value: 0, label: 'Пауза', shortcut: 'Space' },
-  { value: 1, label: `×${formatGameNumber(1)}`, shortcut: '1' },
-  { value: 5, label: `×${formatGameNumber(5)}`, shortcut: '2' },
-  { value: 10, label: `×${formatGameNumber(10)}`, shortcut: '3' },
+  { value: 1, label: `×${formatGameInteger(1)}`, shortcut: '1' },
+  { value: 5, label: `×${formatGameInteger(5)}`, shortcut: '2' },
+  { value: 10, label: `×${formatGameInteger(10)}`, shortcut: '3' },
 ]
-const speedOptions = computed(() => diagnosticSpeedUnlocked.value ? [...normalSpeedOptions, { value: 100 as const, label: `×${formatGameNumber(100)}` }] : normalSpeedOptions)
+const speedOptions = computed(() => diagnosticSpeedUnlocked.value ? [...normalSpeedOptions, { value: 100 as const, label: `×${formatGameInteger(100)}` }] : normalSpeedOptions)
 const positions = ref<Record<string, Point>>(Object.fromEntries(simulation.snapshot().nodes.map((node) => [node.id, node.position ?? { x: 0, y: 0 }])))
 const graphFrame = ref<HTMLElement | null>(null)
 const flowCoordinateApi = shallowRef<FlowCoordinateApi | null>(null)
@@ -162,7 +162,29 @@ function centeredNodePosition(type: NodeType): Point {
     y: bounds.top + bounds.height / 2,
   })
   const size = nodeSize(type)
-  return { x: center.x - size.width / 2, y: center.y - size.height / 2 }
+  const origin = { x: center.x - size.width / 2, y: center.y - size.height / 2 }
+  const existingNodes = snapshot.value.nodes
+  const fits = (candidate: Point) => existingNodes.every((node) => !overlaps(candidate, size, nodePosition(node), nodeSize(node.type)))
+  if (fits(origin)) return origin
+
+  const stepX = 318
+  const stepY = 252
+  for (let ring = 1; ring <= 12; ring += 1) {
+    const offsets: Point[] = [
+      { x: ring, y: 0 }, { x: -ring, y: 0 }, { x: 0, y: ring }, { x: 0, y: -ring },
+    ]
+    for (let offset = 1; offset <= ring; offset += 1) {
+      offsets.push(
+        { x: ring, y: offset }, { x: ring, y: -offset }, { x: -ring, y: offset }, { x: -ring, y: -offset },
+        { x: offset, y: ring }, { x: -offset, y: ring }, { x: offset, y: -ring }, { x: -offset, y: -ring },
+      )
+    }
+    for (const offset of offsets) {
+      const candidate = { x: origin.x + offset.x * stepX, y: origin.y + offset.y * stepY }
+      if (fits(candidate)) return candidate
+    }
+  }
+  return origin
 }
 
 function overlaps(first: Point, firstSize: Size, second: Point, secondSize: Size) {
@@ -298,7 +320,7 @@ function scheduleAutosave() {
   autosaveTimer = setTimeout(() => {
     autosaveTimer = null
     saveLocalNow()
-  }, 750)
+  }, 10_000)
 }
 
 function sync() {
@@ -385,7 +407,7 @@ function dismissSelectedCat() {
   const name = selectedCat.value.name
   const result = simulation.dismissCat(selectedCat.value.id)
   if (result.ok) selectedCatId.value = null
-  report(result, `${name} получил компенсацию и покинул лабораторию.`)
+  report(result, `${name}: компенсация выплачена, кот покидает лабораторию.`)
 }
 
 function assignCatToWorkSlot(catId: string, nodeId: string, slotId: string) {
@@ -397,16 +419,16 @@ function assignCatToWorkSlot(catId: string, nodeId: string, slotId: string) {
     ? snapshot.value.nodes.find((node) => node.id === (updatedCat.travel?.targetNodeId ?? updatedCat.stranded?.targetNodeId))
     : undefined
   const success = activeTargetNode?.type === 'rest'
-    ? `${cat?.name ?? 'Кот'} закреплён за местом в модуле «${nodeName}» и отправится туда после отдыха.`
+    ? `${cat?.name ?? 'Кот'}: место в модуле «${nodeName}» назначено; переход начнётся после отдыха.`
     : updatedCat?.status === 'stranded'
-    ? `${cat?.name ?? 'Кот'} переназначен, но путь к новому месту недоступен.`
+    ? `${cat?.name ?? 'Кот'}: новое место назначено, но путь к нему недоступен.`
     : updatedCat?.status === 'travelling'
-    ? `${cat?.name ?? 'Кот'} закреплён за местом и идёт к модулю: ${nodeName}.`
+    ? `${cat?.name ?? 'Кот'} направляется к модулю «${nodeName}»; место назначено.`
     : updatedCat?.nodeId === nodeId && updatedCat.slotId === slotId
-      ? `${cat?.name ?? 'Кот'} переназначен на новое место в этом модуле.`
+      ? `${cat?.name ?? 'Кот'}: назначено новое место в этом модуле.`
     : (updatedCat?.vigor ?? 0) < GAME_BALANCE.cats.maxVigor
-      ? `${cat?.name ?? 'Кот'} закреплён за местом и отправится после полного восстановления.`
-      : `${cat?.name ?? 'Кот'} закреплён за местом, но пока не может дойти: слот отмечен красным.`
+      ? `${cat?.name ?? 'Кот'}: место назначено; переход начнётся после полного восстановления.`
+      : `${cat?.name ?? 'Кот'}: место назначено, но путь пока недоступен; слот отмечен красным.`
   report(result, success)
   return result.ok
 }
@@ -437,12 +459,12 @@ function selectCat(catId: string) {
   const activeTargetNode = snapshot.value.nodes.find((node) => node.id === (cat.travel?.targetNodeId ?? cat.stranded?.targetNodeId))
   status.value = selectedCatId.value
     ? activeTargetNode?.type === 'rest'
-      ? `${cat.name} выбран. Выберите рабочее место для назначения после отдыха.`
+      ? `${cat.name}: выберите рабочее место для назначения после отдыха.`
       : activeTargetNode && activeTargetNode.type !== 'hub'
-        ? `${cat.name} выбран. Выберите новую рабочую цель или нажмите текущую цель ещё раз, чтобы отменить её.`
+        ? `${cat.name}: выберите новую рабочую цель или нажмите текущую цель ещё раз, чтобы отменить её.`
         : currentNode?.type !== 'rest' && currentNode?.type !== 'hub' && cat.slotId
-      ? `${cat.name} выбран. Выберите новое рабочее место или нажмите текущий слот ещё раз, чтобы отправить кота отдыхать.`
-      : `${cat.name} выбран. Кликните по рабочему слоту.`
+      ? `${cat.name}: выберите новое рабочее место или нажмите текущий слот ещё раз, чтобы отправить кота отдыхать.`
+      : `${cat.name}: кликните по рабочему слоту.`
     : 'Выбор кота отменён.'
 }
 
@@ -461,8 +483,8 @@ function handleSlotClick(nodeId: string, slotId: string, occupiedCatId: string |
       const result = simulation.releaseCat(representedCatId)
       const updatedCat = result.ok ? simulation.snapshot().cats.find((candidate) => candidate.id === occupiedCatId) : undefined
       report(result, updatedCat?.status === 'travelling'
-        ? `${cat?.name ?? 'Кот'} снят с работы и идёт отдыхать.`
-        : `${cat?.name ?? 'Кот'} снят с работы, но путь к отдыху недоступен.`)
+        ? `${cat?.name ?? 'Кот'}: работа завершена, начат переход к отдыху.`
+        : `${cat?.name ?? 'Кот'}: работа завершена, но путь к отдыху недоступен.`)
       if (result.ok) selectedCatId.value = null
       return
     }
@@ -480,7 +502,7 @@ function handleSlotClick(nodeId: string, slotId: string, occupiedCatId: string |
     if (assignedCatId && targetNode?.type !== 'rest' && targetNode?.type !== 'hub') {
       const cat = catIndex.value[representedCatId]
       const result = simulation.clearWorkAssignment(nodeId, slotId)
-      report(result, `${cat?.name ?? 'Кот'} больше не закреплён за этим местом.`)
+      report(result, `Назначение для ${cat?.name ?? 'кота'} снято.`)
       if (result.ok) selectedCatId.value = null
       return
     }
@@ -548,10 +570,14 @@ function disconnectSelected() {
   selectedConnection.value = null
 }
 
+function previewNodePosition(event: NodeDragEvent) {
+  positions.value[event.node.id] = { ...event.node.position }
+}
+
 function updateNodePosition(event: NodeDragEvent) {
   const node = snapshot.value.nodes.find((candidate) => candidate.id === event.node.id)
   if (!node) return
-  positions.value[event.node.id] = { ...event.node.position }
+  previewNodePosition(event)
   simulation.setNodePosition(event.node.id, positions.value[event.node.id])
   for (const link of snapshot.value.workerLinks) {
     simulation.updateWorkerLinkTravelTime(link.id, workerTravelSeconds(link.nodeAId, link.nodeBId))
@@ -590,7 +616,7 @@ function setSimulationSpeed(speed: SimulationSpeed) {
   if (showGoalModal.value) return
   simulationSpeed.value = speed
   if (speed !== 0) lastRunningSpeed.value = speed
-  status.value = speed === 0 ? 'Симуляция поставлена на паузу.' : `Скорость симуляции: ×${formatGameNumber(speed)}.`
+  status.value = speed === 0 ? 'Симуляция поставлена на паузу.' : `Скорость симуляции: ×${formatGameInteger(speed)}.`
 }
 
 function handleKeyboardShortcuts(event: KeyboardEvent) {
@@ -614,7 +640,7 @@ function handleKeyboardShortcuts(event: KeyboardEvent) {
 function unlockDiagnosticSpeed() {
   if (diagnosticSpeedUnlocked.value) return
   diagnosticSpeedUnlocked.value = true
-  status.value = `Диагностический режим открыт: доступна скорость ×${formatGameNumber(100)}.`
+  status.value = `Диагностический режим открыт: доступна скорость ×${formatGameInteger(100)}.`
 }
 
 function downloadText(contents: string, filename: string) {
@@ -749,9 +775,9 @@ function animate(time: number) {
     else if (!wasFlightUnlocked && snapshot.value.flightUnlocked) {
       simulationSpeed.value = 1
       lastRunningSpeed.value = 1
-      status.value = `Научный прорыв: коты получили возможность летать напрямую между модулями. Скорость снижена до ×${formatGameNumber(1)}.`
+      status.value = `Научный прорыв: коты получили возможность летать напрямую между модулями. Скорость снижена до ×${formatGameInteger(1)}.`
     }
-    else if (arrivedCat) status.value = `${arrivedCat.name} прибыл: ${snapshot.value.nodes.find((node) => node.id === arrivedCat.nodeId)?.name ?? 'модуль'}.`
+    else if (arrivedCat) status.value = `${arrivedCat.name}: прибытие в модуль «${snapshot.value.nodes.find((node) => node.id === arrivedCat.nodeId)?.name ?? 'модуль'}».`
   }
   frame = requestAnimationFrame(animate)
 }
@@ -866,7 +892,7 @@ onBeforeUnmount(() => {
             <span :style="{ width: `${flightResearchProgress}%` }"></span>
           </div>
           <div class="research-project__value">
-            <strong>{{ formatGameNumber(Math.min(totalScience, GAME_BALANCE.science.flightUnlockProgress)) }} / {{ formatGameNumber(GAME_BALANCE.science.flightUnlockProgress) }}</strong>
+            <strong>{{ formatGameNumber(Math.min(totalScience, GAME_BALANCE.science.flightUnlockProgress)) }} / {{ formatGameInteger(GAME_BALANCE.science.flightUnlockProgress) }}</strong>
             <span>НАУКИ</span>
           </div>
           <p v-if="snapshot.flightUnlocked">Коты могут летать напрямую между модулями.</p>
@@ -887,7 +913,7 @@ onBeforeUnmount(() => {
           </div>
           <div class="objective-condition" :class="{ 'objective-condition--complete': snapshot.goal.peakNetIncomePerMinute >= GAME_BALANCE.objective.requiredPeakNetIncomePerMinute }">
             <span aria-hidden="true">{{ snapshot.goal.peakNetIncomePerMinute >= GAME_BALANCE.objective.requiredPeakNetIncomePerMinute ? '✓' : '○' }}</span>
-            <div><small>ПИКОВАЯ ПРИБЫЛЬ</small><strong>{{ formatGameNumber(snapshot.goal.peakNetIncomePerMinute) }} / {{ formatGameNumber(GAME_BALANCE.objective.requiredPeakNetIncomePerMinute) }} /МИН</strong></div>
+            <div><small>ПИКОВАЯ ПРИБЫЛЬ</small><strong>{{ formatGameNumber(snapshot.goal.peakNetIncomePerMinute) }} / {{ formatGameInteger(GAME_BALANCE.objective.requiredPeakNetIncomePerMinute) }} /МИН</strong></div>
           </div>
           <div class="objective-condition objective-condition--timer" :class="{ 'objective-condition--complete': profitGoalComplete }">
             <span aria-hidden="true">{{ profitGoalComplete ? '✓' : '○' }}</span>
@@ -907,17 +933,17 @@ onBeforeUnmount(() => {
           <p v-if="snapshot.goal.acknowledged" class="objective-card__sandbox">ЦЕЛЬ ДОСТИГНУТА · ПЕСОЧНИЦА ПРОДОЛЖАЕТСЯ</p>
         </section>
         <p class="panel-label">КОНСТРУКТОР СЕТИ</p>
-        <button v-if="showRestConstruction" class="action-button" type="button" :disabled="snapshot.economy.credits < GAME_BALANCE.nodes.rest.cost" @click="createNode('rest')"><span>⌂</span> Комната отдыха · {{ formatGameNumber(GAME_BALANCE.nodes.rest.cost) }}</button>
-        <button class="action-button" type="button" :disabled="snapshot.economy.credits < GAME_BALANCE.nodes.research.cost" @click="createNode('research')"><span>✦</span> Исследования · {{ formatGameNumber(GAME_BALANCE.nodes.research.cost) }}</button>
-        <button v-if="showServerConstruction" class="action-button" type="button" :disabled="snapshot.economy.credits < GAME_BALANCE.nodes.server.cost" @click="createNode('server')"><span>▦</span> Сервер · {{ formatGameNumber(GAME_BALANCE.nodes.server.cost) }}</button>
-        <button v-if="showTerminalConstruction" class="action-button" type="button" :disabled="snapshot.economy.credits < GAME_BALANCE.nodes.terminal.cost" @click="createNode('terminal')"><span>₡</span> Торговый терминал · {{ formatGameNumber(GAME_BALANCE.nodes.terminal.cost) }}</button>
-        <button v-if="showHubConstruction" class="action-button" type="button" :disabled="snapshot.economy.credits < GAME_BALANCE.nodes.hub.cost" @click="createNode('hub')"><span>◆</span> Дорожный хаб · {{ formatGameNumber(GAME_BALANCE.nodes.hub.cost) }}</button>
+        <button v-if="showRestConstruction" class="action-button" type="button" :disabled="snapshot.economy.credits < GAME_BALANCE.nodes.rest.cost" @click="createNode('rest')"><span>⌂</span> Комната отдыха · {{ formatGameInteger(GAME_BALANCE.nodes.rest.cost) }}</button>
+        <button class="action-button" type="button" :disabled="snapshot.economy.credits < GAME_BALANCE.nodes.research.cost" @click="createNode('research')"><span>✦</span> Исследования · {{ formatGameInteger(GAME_BALANCE.nodes.research.cost) }}</button>
+        <button v-if="showServerConstruction" class="action-button" type="button" :disabled="snapshot.economy.credits < GAME_BALANCE.nodes.server.cost" @click="createNode('server')"><span>▦</span> Сервер · {{ formatGameInteger(GAME_BALANCE.nodes.server.cost) }}</button>
+        <button v-if="showTerminalConstruction" class="action-button" type="button" :disabled="snapshot.economy.credits < GAME_BALANCE.nodes.terminal.cost" @click="createNode('terminal')"><span>₡</span> Торговый терминал · {{ formatGameInteger(GAME_BALANCE.nodes.terminal.cost) }}</button>
+        <button v-if="showHubConstruction" class="action-button" type="button" :disabled="snapshot.economy.credits < GAME_BALANCE.nodes.hub.cost" @click="createNode('hub')"><span>◆</span> Дорожный хаб · {{ formatGameInteger(GAME_BALANCE.nodes.hub.cost) }}</button>
         <p v-if="snapshot.economy.debtWarning" class="debt-warning">ЛАБОРАТОРИЯ ЗАКРЫТА · ранний доступ позволяет продолжить восстановление.</p>
         <button v-if="selectedConnection" class="action-button action-button--disconnect" type="button" @click="disconnectSelected"><span>×</span> Отключить связь</button>
         <button v-if="selectedModuleId" class="action-button action-button--danger" type="button" @click="deleteSelectedNode"><span>×</span> Удалить выбранный модуль</button>
         <div class="panel-rule"></div>
         <p class="panel-label">ЭКИПАЖ</p>
-        <button class="hire-button" type="button" :disabled="!canHireCat" @click="hireCat"><span>◕</span> Нанять кота · {{ formatGameNumber(GAME_BALANCE.economy.hireCatCost) }}</button>
+        <button class="hire-button" type="button" :disabled="!canHireCat" @click="hireCat"><span>◕</span> Нанять кота · {{ formatGameInteger(GAME_BALANCE.economy.hireCatCost) }}</button>
         <section class="crew-roster-section" aria-label="Коты без работы">
           <div class="crew-roster-heading"><span>БЕЗ РАБОТЫ</span><strong>{{ unassignedCats.length }}</strong></div>
           <div v-if="unassignedCats.length" class="crew-roster-list">
@@ -938,7 +964,7 @@ onBeforeUnmount(() => {
           </div>
           <p v-else class="crew-roster-empty">ВСЕ КОТЫ НАЗНАЧЕНЫ</p>
         </section>
-        <button class="action-button action-button--danger" type="button" :disabled="!canDismissSelectedCat" @click="dismissSelectedCat"><span>−</span> Уволить кота · {{ formatGameNumber(GAME_BALANCE.economy.dismissCatCost) }}</button>
+        <button class="action-button action-button--danger" type="button" :disabled="!canDismissSelectedCat" @click="dismissSelectedCat"><span>−</span> Уволить кота · {{ formatGameInteger(GAME_BALANCE.economy.dismissCatCost) }}</button>
         <div class="panel-rule"></div>
         <p class="panel-label">СОХРАНЕНИЕ</p>
         <button class="action-button" type="button" @click="exportGame"><span>⇩</span> Выгрузить JSON</button>
@@ -968,7 +994,7 @@ onBeforeUnmount(() => {
           @connect="onConnect"
           @edge-click="selectConnection"
           @node-click="selectModule"
-          @node-drag="updateNodePosition"
+          @node-drag="previewNodePosition"
           @node-drag-stop="updateNodePosition"
         >
           <template #connection-line="{ sourceX, sourceY, targetX, targetY }">
@@ -976,7 +1002,7 @@ onBeforeUnmount(() => {
           </template>
         </VueFlow>
         <div class="graph-status" :class="{ 'graph-status--selection': selectedCatId || selectedSlot || selectedConnection || selectedModuleId }"><span class="status-dot"></span>{{ status }}</div>
-        <div class="canvas-caption"><span>LIVE SIMULATION</span><b>{{ formatGameNumber(simulationSpeed) }}×</b></div>
+        <div class="canvas-caption"><span>LIVE SIMULATION</span><b>{{ formatGameInteger(simulationSpeed) }}×</b></div>
       </section>
     </section>
   </main>
